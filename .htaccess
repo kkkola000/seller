@@ -1,0 +1,7 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule ^(?:data|storage|test|node_modules|\.git)(?:/|$) - [F,L]
+</IfModule>
+<FilesMatch "^(?:server\.js|package(?:-lock)?\.json|README\.md|\.gitignore)$">
+Require all denied
+</FilesMatch>
