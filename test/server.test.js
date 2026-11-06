@@ -22,5 +22,6 @@ assert.equal((await call('report','PUT',{year:2026,month:9,rows:[]},admin.cookie
 assert.deepEqual((await call('report?year=2026&month=9','GET',null,client.cookie)).body.rows,[]);
 await call('logout','POST',{},client.cookie);assert.equal((await call('session','GET',null,client.cookie)).status,401);
 const page=await fetch(base+'/admin');assert.equal(page.status,200);assert.match(await page.text(),/Финансовая отчётность/);
+for(const path of ['/seller/public/index.html','/seller/public/app.js','/seller/public/style.css']){const response=await fetch(base+path);assert.equal(response.status,200,path);assert.match(response.headers.get('content-type'),path.endsWith('.js')?/javascript/:path.endsWith('.css')?/css/:/html/);}
 const script=await fetch(base+'/exceljs.min.js');assert.equal(script.status,200);
 }finally{await new Promise(r=>server.close(r));rmSync(process.env.DATA_DIR,{recursive:true,force:true});}});
