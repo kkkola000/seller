@@ -1,0 +1,24 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {DatabaseSync} from 'node:sqlite';
+process.env.DATA_DIR=mkdtempSync(join(tmpdir(),'finance-setup-'));
+for(const name of ['ADMIN_LOGIN','ADMIN_PASSWORD','CLIENT_CODE','SETUP_KEY'])delete process.env[name];
+const {server}=await import('../server.js');
+test('first-run setup requires bootstrap key, stores salted hashes and locks after creation',async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const base=`http://127.0.0.1:${server.address().port}`;async function call(path,method='GET',data){const r=await fetch(base+'/api/'+path,{method,headers:{'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined});return {status:r.status,body:await r.json()};}try{
+assert.deepEqual((await call('setup')).body,{required:true,available:false});
+assert.equal((await call('setup','POST',{})).status,503);
+process.env.SETUP_KEY='bootstrap-key-for-testing';
+const data={key:process.env.SETUP_KEY,login:'owner',password:'a-long-test-password',code:'client-code-123'};
+assert.equal((await call('setup','POST',{...data,key:'wrong'})).status,403);
+assert.equal((await call('setup','POST',{...data,password:'short'})).status,400);
+assert.equal((await call('setup','POST',data)).status,201);
+assert.equal((await call('setup')).body.required,false);
+assert.equal((await call('setup','POST',data)).status,409);
+assert.equal((await call('login','POST',{role:'admin',login:data.login,password:data.password})).status,200);
+assert.equal((await call('login','POST',{code:data.code})).status,200);
+assert.equal((await call('login','POST',{role:'admin',login:data.login,password:'wrong-password'})).status,401);
+const db=new DatabaseSync(join(process.env.DATA_DIR,'finance.sqlite'));const row=db.prepare('SELECT * FROM credentials').get();assert.notEqual(row.password_hash,data.password);assert.notEqual(row.code_hash,data.code);assert.match(row.password_hash,/^[a-f0-9]{32}:[a-f0-9]{64}$/);db.close();
+}finally{await new Promise(r=>server.close(r));rmSync(process.env.DATA_DIR,{recursive:true,force:true});}});
